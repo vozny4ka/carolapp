@@ -11,7 +11,6 @@ var identifier = {
 }
 
 var bgSound, bgImage;
-var singerPinky, singerTripple, singerFat, singerLonger;
 var singers = [];
 var masterClock = 0;
 
