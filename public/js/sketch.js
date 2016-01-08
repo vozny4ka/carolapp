@@ -2,37 +2,33 @@
 // an2netto
 // https://carol-dudes.herokuapp.com/
 
-var state = {
-  idle: {value:0, name:"idle"}, 
-  singingPart1: {value:1, name:"part1"},
-  singingPart2: {value:2, name:"part2"}
-};
-
 var identifier = {
-	none: {value:0, name:"none"},
-	pink: {value:1, name:"pink"},
-	tripple: {value:2, name:"tripple"},
-	fat: {fat:3, name:"fat"},
-	longer: {longer:4, name:"longer"}
+	none: {value:0, name:"none", color:[]},
+	pink: {value:1, name:"pink", color:[240, 185, 197]},
+	tripple: {value:2, name:"tripple", color:[161, 161, 211]},
+	fat: {value:3, name:"fat", color:[236, 227, 159]},
+	longer: {longer:4, name:"longer", color:[245, 126, 122]}
 }
 
 var bgSound, bgImage;
 var singerPinky, singerTripple, singerFat, singerLonger;
+var singers = [];
+var masterClock = 0;
 
 function preload() {
 
-	var singerLongerImgs = [], 	singerFatImgs = [], singerPinkyImgs = [], singerTrippleImgs = [];
+	var longerImgs = [], fatImgs = [], pinkyImgs = [], trippleImgs = [];
 	for (var i = 0; i < 94; i++) {
-		singerLongerImgs[i] = loadImage("../dudes/long/long_" + nf(i, 4) + ".png");
-		singerFatImgs[i] = loadImage("../dudes/fat/fat_" + nf(i, 4) + ".png");
-		singerPinkyImgs[i] = loadImage("../dudes/pink/pink_" + nf(i, 4) + ".png");
-		singerTrippleImgs[i] = loadImage("../dudes/tripple/tripple_" + nf(i, 4) + ".png");
+		longerImgs[i] = loadImage("../dudes/long/long_" + nf(i, 4) + ".png");
+		fatImgs[i] = loadImage("../dudes/fat/fat_" + nf(i, 4) + ".png");
+		pinkyImgs[i] = loadImage("../dudes/pink/pink_" + nf(i, 4) + ".png");
+		trippleImgs[i] = loadImage("../dudes/tripple/tripple_" + nf(i, 4) + ".png");
 	}
 
-	singerLonger = new Singer(identifier.longer, singerLongerImgs, loadSound("../voices/voice_long1.ogg"), loadSound("../voices/voice_long2.ogg"));
-	singerFat = new Singer(identifier.fat, singerFatImgs, loadSound("../voices/voice_fat1.ogg"), loadSound("../voices/voice_fat2.ogg"));
-	singerPinky = new Singer(identifier.pink, singerPinkyImgs, loadSound("../voices/voice_pink1.ogg"), loadSound("../voices/voice_pink2.ogg"));
-	singerTripple = new Singer(identifier.tripple, singerTrippleImgs, loadSound("../voices/voice_tripple1.ogg"), loadSound("../voices/voice_tripple2.ogg"));
+	singers[0] = new Singer(identifier.longer, longerImgs, loadSound("../voices/voice_long1.ogg"), loadSound("../voices/voice_long2.ogg"));
+	singers[1] = new Singer(identifier.fat, fatImgs, loadSound("../voices/voice_fat1.ogg"), loadSound("../voices/voice_fat2.ogg"));
+	singers[2] = new Singer(identifier.pink, pinkyImgs, loadSound("../voices/voice_pink1.ogg"), loadSound("../voices/voice_pink2.ogg"));
+	singers[3] = new Singer(identifier.tripple, trippleImgs, loadSound("../voices/voice_tripple1.ogg"), loadSound("../voices/voice_tripple2.ogg"));
 
 	bgImage = loadImage("../bg_0000.png");
 	// bgSound = loadSound("../bg.ogg");
@@ -42,73 +38,37 @@ function setup() {
 	createCanvas(960, 540);
   	frameRate(25);
 
-  	singerLonger.voice1.setVolume(0.2);
-	singerLonger.voice2.setVolume(0.2);
-	singerFat.voice1.setVolume(0.2);
-	singerFat.voice2.setVolume(0.2);
-	singerPinky.voice1.setVolume(0.2);
-	singerPinky.voice2.setVolume(0.2);
-	singerTripple.voice1.setVolume(0.2);
-	singerTripple.voice2.setVolume(0.2);
   	// bgSound.setVolume(0.5);
   	// bgSound.loop();
 }
 
 function draw() {
-
 	background(bgImage);
-	singerLonger.perform();
-	singerFat.perform();
-	singerTripple.perform();
-	singerPinky.perform();
-  
+	for (var i = 0; i < singers.length; i++) { singers[i].perform(); }
+
+	masterClock = (masterClock + 1) % 94;
 }
 
 function mousePressed() {
-	// var singer = pointInside();
-	// if (singer != null) {
-	// 	singer.toggleState();
-	// }
-}
-
-function isInside(x, y, z1, z2, z3, z4) {
-    x1 = Math.min(z1, z3);
-    x2 = Math.max(z1, z3);
-    y1 = Math.min(z2, z4);
-    y2 = Math.max(z2, z4);
-    return ( (x1 <= x ) && ( x <= x2) && (y1 <= y) && (y <= y2) );
-};
-
-function pointInside() {
-	var pinkyFrame = singerPinky.frame();
-	var trippleFrame = singerTripple.frame();
-	var longerFrame = singerLonger.frame();
-	var fatFrame = singerFat.frame();
-
-	if (isInside(mouseX, mouseY, pinkyFrame.x, pinkyFrame.y, pinkyFrame.x + pinkyFrame.w, pinkyFrame.y + pinkyFrame.h)) {
-		return singerPinky;
-	}
-	else if (isInside(mouseX, mouseY, trippleFrame.x, trippleFrame.y, trippleFrame.x + trippleFrame.w, trippleFrame.y + trippleFrame.h)) {
-		return singerTripple;
-	}
-	else if (isInside(mouseX, mouseY, longerFrame.x, longerFrame.y, longerFrame.x + longerFrame.w, longerFrame.y + longerFrame.h)) {
-		return singerLonger;
-	}
-	else if (isInside(mouseX, mouseY, fatFrame.x, fatFrame.y, fatFrame.x + fatFrame.w, fatFrame.y + fatFrame.h)) {
-		return singerFat;
-	}
-	else {
-		return null;
+	var pixelColor = get(mouseX, mouseY);
+	for (var i = 0; i < singers.length; i++) {
+		if (isEqualColor(pixelColor, singers[i].identifier.color)) {
+			singers[i].toggleState();
+			break;
+		}
 	}
 }
 
-function Singer(id, images, voice1, voice2) {
-	this.state = state.idle;
+var Singer = function(id, images, voice1, voice2) {
 	this.identifier = id;
-	this.images = images;
-	this.iter = 0;
 	this.voice1 = voice1;
 	this.voice2 = voice2;
+	this.images = images;
+	this.init();
+
+	var _currentStateValue = 0;
+	var _nextStateValue = 0;
+	var _shouldToggleState = false;
 
 	this.position = function() {
 		if (this.identifier == identifier.none) { 
@@ -151,57 +111,37 @@ function Singer(id, images, voice1, voice2) {
 	}
 
 	this.toggleState = function() {
-		if (this.state == state.idle) {
-			this.state = state.singingPart1;
-		}
-		else if (this.state == state.singingPart1) {
-			this.state = state.singingPart2;
-		}
-		else if (this.state == state.singingPart2) {
-			this.state = state.idle;
-		}
-	}
-
-	this.wiggle = function() {
-		if (this.iter > 46) {
-			this.sing();
-			return;
-		}
-		else if (this.state == state.idle && this.iter == 0) {
-			// Do we have to do anything here?
-		}
-
-		image(this.images[this.iter], this.frame().x, this.frame().y);
-		this.iter = (this.iter + 1) % 47;
-	}
-
-	this.sing = function() {
-		if (this.iter < 46) {
-			this.wiggle();
-			return;
-		}
-		else if (this.iter == 46) {
-			if (this.state == state.singingPart1) {
-				this.voice1.play();
-			}
-			else if (this.state == state.singingPart2) {
-				this.voice2.play();
-			}
-		}
-
-		image(this.images[this.iter + 1], this.frame().x, this.frame().y);
-		this.iter = (this.iter + 1) % 93;
-		if (this.iter == 0) {
-			this.iter = 46;
-		}
+		_nextStateValue = (_nextStateValue + 1) % 3;
+		_shouldToggleState = (_nextStateValue != _currentStateValue);
 	}
 
 	this.perform = function() {
-		if (this.state == state.idle) {
-			this.wiggle();
+		if (masterClock == 0 && _shouldToggleState) {
+			_currentStateValue = _nextStateValue;
+			_shouldToggleState = false;
 		}
-		else {
-			this.sing();
+
+		switch (_currentStateValue) {
+			case 1:
+				image(this.images[(masterClock + 47) % 94], this.frame().x, this.frame().y);
+				if (masterClock == 0) { this.voice1.play(); }
+				break;
+			case 2:
+				image(this.images[masterClock], this.frame().x, this.frame().y);
+				if (masterClock == 47) { this.voice2.play(); }
+				break;
+			default:
+				image(this.images[masterClock % 47], this.frame().x, this.frame().y);
+				break;
 		}
 	}
+}
+
+Singer.prototype.init = function() {
+	this.voice1.setVolume(0.2);
+	this.voice2.setVolume(0.2);
+}
+
+function isEqualColor(c1, c2) {
+	return (c1[0] == c2[0] && c1[1] == c2[1] && c1[2] == c2[2]);
 }
