@@ -3,11 +3,14 @@
 // https://carol-dudes.herokuapp.com/
 
 var identifier = {
-	none: {value:0, name:"none", color:[]},
-	pink: {value:1, name:"pink", color:[240, 185, 197]},
-	tripple: {value:2, name:"tripple", color:[161, 161, 211]},
-	fat: {value:3, name:"fat", color:[236, 227, 159]},
-	longer: {longer:4, name:"longer", color:[245, 126, 122]}
+	none: {value:0, name:"none", color:[], position:[0, 0]},
+	pink: {value:1, name:"pink", color:[240, 185, 197], position:[335, 175]},
+	tripple: {value:2, name:"tripple", color:[161, 161, 211], position:[140, 145]},
+	fat: {value:3, name:"fat", color:[236, 227, 159], position:[192, 152]},
+	longer: {value:4, name:"longer", color:[245, 126, 122], position:[142, 130]},
+	green: {value:5, name:"green", color:[141, 198, 159], position:[280, 140]},
+	small: {value:6, name:'small', color:[233, 223, 147], position:[355, 218]},
+	white: {value:7, name:'white', color:[255, 255, 255], position:[222, 173]}
 }
 
 var bgSound, bgImage;
@@ -16,33 +19,42 @@ var masterClock = 0;
 
 function preload() {
 
-	var longerImgs = [], fatImgs = [], pinkyImgs = [], trippleImgs = [];
+	var longerImgs = [], fatImgs = [], pinkyImgs = [], trippleImgs = [], greenImgs = [], smallImgs = [], whiteImgs = [];
+	var format;
 	for (var i = 0; i < 94; i++) {
-		longerImgs[i] = loadImage("../dudes/long/long_" + nf(i, 4) + ".png");
-		fatImgs[i] = loadImage("../dudes/fat/fat_" + nf(i, 4) + ".png");
-		pinkyImgs[i] = loadImage("../dudes/pink/pink_" + nf(i, 4) + ".png");
-		trippleImgs[i] = loadImage("../dudes/tripple/tripple_" + nf(i, 4) + ".png");
+		format = nf(i, 4) + ".png";
+		longerImgs[i] = loadImage("../dudes/long/long_" + format);
+		fatImgs[i] = loadImage("../dudes/fat/fat_" + format);
+		pinkyImgs[i] = loadImage("../dudes/pink/pink_" + format);
+		trippleImgs[i] = loadImage("../dudes/tripple/tripple_" + format);
+		greenImgs[i] = loadImage("../dudes/green/green_" + format);
+		smallImgs[i] = loadImage("../dudes/small/small_" + format);
+		whiteImgs[i] = loadImage("../dudes/white/white_" + format);
 	}
 
-	singers[0] = new Singer(identifier.longer, longerImgs, loadSound("../voices/voice_long1.ogg"), loadSound("../voices/voice_long2.ogg"));
-	singers[1] = new Singer(identifier.fat, fatImgs, loadSound("../voices/voice_fat1.ogg"), loadSound("../voices/voice_fat2.ogg"));
-	singers[2] = new Singer(identifier.pink, pinkyImgs, loadSound("../voices/voice_pink1.ogg"), loadSound("../voices/voice_pink2.ogg"));
-	singers[3] = new Singer(identifier.tripple, trippleImgs, loadSound("../voices/voice_tripple1.ogg"), loadSound("../voices/voice_tripple2.ogg"));
-
-	bgImage = loadImage("../bg_0000.png");
-	// bgSound = loadSound("../bg.ogg");
+	// layout depends on order in which singers are initialized
+	singers[0] = new Singer(identifier.longer, longerImgs, new buzz.sound("../voices/long1.mp3"), new buzz.sound("../voices/long2.mp3"));
+	singers[1] = new Singer(identifier.green, greenImgs, new buzz.sound("../voices/green1.mp3"), new buzz.sound("../voices/green2.mp3"));
+	singers[2] = new Singer(identifier.fat, fatImgs, new buzz.sound("../voices/fat1.mp3"), new buzz.sound("../voices/fat2.mp3"));
+	singers[3] = new Singer(identifier.pink, pinkyImgs, new buzz.sound("../voices/pink1.mp3"), new buzz.sound("../voices/pink2.mp3"));
+	singers[4] = new Singer(identifier.white, whiteImgs, new buzz.sound("../voices/white1.mp3"), new buzz.sound("../voices/white2.mp3"));
+	singers[5] = new Singer(identifier.tripple, trippleImgs, new buzz.sound("../voices/tripple1.mp3"), new buzz.sound("../voices/tripple2.mp3"));
+	singers[6] = new Singer(identifier.small, smallImgs, new buzz.sound("../voices/small1.mp3"), new buzz.sound("../voices/small2.mp3"));
+	
+	bgImage = loadImage("../bg.png");
+	// bgSound = new buzz.sound( "../bg", { formats:[ "ogg", "mp3", "aac" ] });
 }
 
 function setup() {
-	createCanvas(960, 540);
+	createCanvas(480, 270);
   	frameRate(25);
 
-  	// bgSound.setVolume(0.5);
-  	// bgSound.loop();
+  	console.log('in setup');
 }
 
 function draw() {
 	background(bgImage);
+	
 	for (var i = 0; i < singers.length; i++) { singers[i].perform(); }
 
 	masterClock = (masterClock + 1) % 94;
@@ -63,46 +75,18 @@ var Singer = function(id, images, voice1, voice2) {
 	this.voice1 = voice1;
 	this.voice2 = voice2;
 	this.images = images;
-	this.init();
+	// this.init();
 
 	var _currentStateValue = 0;
 	var _nextStateValue = 0;
 	var _shouldToggleState = false;
 
 	this.position = function() {
-		if (this.identifier == identifier.none) { 
-			return {x:0, y:0};
-		}
-		else if (this.identifier == identifier.longer) {
-			return {x:225, y:260};
-		}
-		else if (this.identifier == identifier.fat) {
-			return {x:325, y:305};
-		}
-		else if (this.identifier == identifier.pink) {
-			return {x:670, y:350};
-		}
-		else if (this.identifier == identifier.tripple) {
-			return {x:220, y:280};
-		}
+		return {x:this.identifier.position[0], y:this.identifier.position[1]};
 	}
 
 	this.size = function() {
-		if (this.identifier == identifier.none) {
-			return {w:0, h:0};
-		}
-		else if (this.identifier == identifier.longer) {
-			return {w:218, h:450};
-		}
-		else if (this.identifier == identifier.fat) {
-			return {w:421, h:380};
-		}
-		else if (this.identifier == identifier.pink) {
-			return {w:160, h:285};
-		}
-		else if (this.identifier == identifier.tripple) {
-			return {w:238, h:448};
-		}
+		return {w:this.images[0].width, h:this.images[0].height};
 	}
 
 	this.frame = function() {
@@ -137,8 +121,8 @@ var Singer = function(id, images, voice1, voice2) {
 }
 
 Singer.prototype.init = function() {
-	this.voice1.setVolume(0.2);
-	this.voice2.setVolume(0.2);
+	this.voice1.volume(20);
+	this.voice2.volume(20);
 }
 
 function isEqualColor(c1, c2) {

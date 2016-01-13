@@ -1,0 +1,100 @@
+<html>
+<head>
+  <meta charset="UTF-8">
+
+    <!-- import bootstrap -->
+    <link rel="stylesheet" type="text/css" href="../css/bootstrap.css" />
+    <!-- import our own stylesheet -->
+    <link rel="stylesheet" type="text/css" href="../css/index.css" />
+    <!-- import jQuery -->
+    <script src="http://code.jquery.com/jquery-1.11.3.min.js"></script>
+</head>
+
+<body>
+
+  <a
+    style="margin-left:10px;"
+    href="action.html">
+    Play
+  </a>
+  &nbsp;
+
+  <div class="container">
+    <h1>cthulhu fhtagn</h1>
+
+    <!--
+       These are the thumbnail images.
+       They are laid out using the 
+       bootstrap grid.
+       I have given them all the class
+       "crop-image" which I use in the
+       css and the javascript code.
+    -->
+    <div class="row, row-centered">
+      <div class="col-xs-6, col-centered">
+        <img class="crop-img" 
+          src="../dudes_00/01_fat.png" 
+          alt="fat"/> 
+      </div>
+      <div class="col-xs-6, col-centered">
+        <img class="crop-img" 
+          src="../dudes_00/02_green.png" 
+          alt="green"/> 
+      </div>
+      <div class="col-xs-6, col-centered">
+        <img class="crop-img" 
+          src="../dudes_00/03_long.png" 
+          alt="long"/> 
+      </div>
+      <div class="col-xs-6, col-centered">
+        <img class="crop-img" 
+           src="../dudes_00/04_pink.png" 
+           alt="pink"/> 
+      </div>
+      <div class="col-xs-6, col-centered">
+        <img class="crop-img" 
+           src="../dudes_00/05_small.png" 
+           alt="small"/> 
+      </div>
+      <div class="col-xs-6, col-centered">
+        <img class="crop-img" 
+           src="../dudes_00/06_tripple.png" 
+           alt="tripple"/> 
+      </div>
+      <div class="col-xs-6, col-centered">
+        <img class="crop-img" 
+           src="../dudes_00/07_white.png" 
+           alt="white"/> 
+      </div>
+    </div>
+    <!--
+      this is the large image which is
+      on a row of its own. 
+      I will change it source in the 
+      javascript
+    -->
+    <div class="row, row-centered">
+      <div class="col-md-12">
+        <img id="bigImage" 
+          class="large-img" 
+          src="../dudes_00/01_fat.png" 
+          alt="fat"/> 
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // when we click on the thumbnail
+    // we set the src attribute of the 
+    // bit image to be the same as the 
+    // src of the image we have clicked on
+    // ("this"). This loads the same
+    // image file into the big image
+    $(".crop-img").click(function(){
+      $("#bigImage").attr('src', 
+        $(this).attr('src'));
+    });
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,43 @@
+
+body {
+	background: #F8F8F8;
+}
+
+h1 {
+	font-family: monospace;
+	font-size: 20px;
+	/* text adjustment */
+	color: darkgray;
+	text-align: center;
+}
+
+.crop-img {
+  max-height:55px;
+  max-width:100%;
+  margin-bottom: 10px;
+}
+
+.large-img {
+  max-width:100%;
+  margin-top: 10px;
+}
+
+/* centered columns styles */
+.row-centered {
+    text-align:center;
+}
+
+.col-centered {
+    display:inline-block;
+    float:none;
+    /* reset the text-align */
+    text-align:left;
+    /* inline-block space fix */
+    margin-right:-4px;
+}
+
+/* fixed width, not used */
+.col-fixed {
+    /* custom width */
+    width:180px;
+}

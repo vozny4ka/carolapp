@@ -1,4 +1,4 @@
-/*! p5.sound.js v0.2.16 2015-11-13 */
+/*! p5.sound.js v0.2.16 2015-12-19 */
 (function (root, factory) {
   if (typeof define === 'function' && define.amd)
     define('p5.sound', ['p5'], function (p5) { (factory(p5));});
@@ -593,6 +593,44 @@ helpers = function () {
     return o;
   };
 }(master);
+var errorHandler;
+errorHandler = function () {
+  'use strict';
+  /**
+   *  Helper function to generate an error
+   *  with a custom stack trace that points to the sketch
+   *  and removes other parts of the stack trace.
+   *  
+   *  @private
+   *  
+   *  @param  {String} name         custom  error name
+   *  @param  {String} errorTrace   custom error trace
+   *  @param  {String} failedPath     path to the file that failed to load
+   *  @property {String} name custom error name
+   *  @property {String} message custom error message
+   *  @property {String} stack trace the error back to a line in the user's sketch.
+   *                           Note: this edits out stack trace within p5.js and p5.sound.
+   *  @property {String} originalStack unedited, original stack trace
+   *  @property {String} failedPath path to the file that failed to load
+   *  @return {Error}     returns a custom Error object
+   */
+  var CustomError = function (name, errorTrace, failedPath) {
+    var err = new Error();
+    var tempStack, splitStack;
+    err.name = name;
+    err.originalStack = err.stack + errorTrace;
+    tempStack = err.stack + errorTrace;
+    err.failedPath = failedPath;
+    // only print the part of the stack trace that refers to the user code:
+    var splitStack = tempStack.split('\n');
+    splitStack = splitStack.filter(function (ln) {
+      return !ln.match(/(p5.|native code|globalInit)/g);
+    });
+    err.stack = splitStack.join('\n');
+    return err;
+  };
+  return CustomError;
+}();
 var panner;
 panner = function () {
   'use strict';
@@ -694,20 +732,23 @@ panner = function () {
 var soundfile;
 soundfile = function () {
   'use strict';
+  var CustomError = errorHandler;
   var p5sound = master;
   var ac = p5sound.audiocontext;
   /**
-   *  <p>p5.SoundFile loads all of the data
-   *  from a soundfile (i.e. an mp3) into your sketch so that you can play it, manipulate
-   *  it, and visualize it.</p>
-   *  <p>Loading happens asynchronously, so the p5.SoundFile will not be available
-   *  for playback immediately after it is created. Use the <code>loadSound</code>
-   *  method in <code>preload</code> to ensure that it will be ready by the time
-   *  <code>setup</code> is called. Or, use a callback function to get notified
-   *  when the sound is ready.</p>
-   *  <p>Using the a
-   *  <a href="https://github.com/processing/p5.js/wiki/Local-server">
-   *  local server</a> like the p5 Editor is recommended when loading external files.</p>
+   *  <p>SoundFile object with a path to a file.</p>
+   *  
+   *  <p>The p5.SoundFile may not be available immediately because
+   *  it loads the file information asynchronously.</p>
+   * 
+   *  <p>To do something with the sound as soon as it loads
+   *  pass the name of a function as the second parameter.</p>
+   *  
+   *  <p>Only one file path is required. However, audio file formats 
+   *  (i.e. mp3, ogg, wav and m4a/aac) are not supported by all
+   *  web browsers. If you want to ensure compatability, instead of a single
+   *  file path, you may include an Array of filepaths, and the browser will
+   *  choose a format that works.</p>
    * 
    *  @class p5.SoundFile
    *  @constructor
@@ -715,34 +756,33 @@ soundfile = function () {
    *                               you may include multiple file formats in
    *                               an array. Alternately, accepts an object
    *                               from the HTML5 File API, or a p5.File.
-   *  @param {Function} [callback]   Name of a function to call once file loads
+   *  @param {Function} [successCallback]   Name of a function to call once file loads
+   *  @param {Function} [errorCallback]   Name of a function to call if file fails to
+   *                                      load. This function will receive an error or
+   *                                     XMLHttpRequest object with information
+   *                                     about what went wrong.
+   *  @param {Function} [whileLoadingCallback]   Name of a function to call while file
+   *                                             is loading. That function will
+   *                                             receive percentage loaded
+   *                                             (between 0 and 1) as a
+   *                                             parameter.
+   *                                             
    *  @return {Object}    p5.SoundFile Object
    *  @example 
    *  <div><code>
+   *  
    *  function preload() {
    *    mySound = loadSound('assets/doorbell.mp3');
    *  }
-   *  
+   *
    *  function setup() {
-   *    createCanvas(100, 100);
-   *    background(0, 255, 0);
-   *    
-   *    textAlign(CENTER);
-   *    text('click here to play', width/2, height/2);
-   *
    *    mySound.setVolume(0.1);
-   *  }
-   *
-   *  // play sound on mouse press over canvas
-   *  function mousePressed() {
-   *    if (mouseX < width && mouseY < height && mouseX > 0 && mouseY > 0) {
-   *      mySound.play();
-   *    }
+   *    mySound.play();
    *  }
    * 
    * </code></div>
    */
-  p5.SoundFile = function (paths, onload, whileLoading) {
+  p5.SoundFile = function (paths, onload, onerror, whileLoading) {
     if (typeof paths !== 'undefined') {
       if (typeof paths == 'string' || typeof paths[0] == 'string') {
         var path = p5.prototype._checkFileFormats(paths);
@@ -759,6 +799,9 @@ soundfile = function () {
       }
       this.file = paths;
     }
+    // private _onended callback, set by the method: onended(callback)
+    this._onended = function () {
+    };
     this._looping = false;
     this._playing = false;
     this._paused = false;
@@ -794,14 +837,14 @@ soundfile = function () {
     this.panner = new p5.Panner(this.output, p5sound.input, 2);
     // it is possible to instantiate a soundfile with no path
     if (this.url || this.file) {
-      this.load(onload);
+      this.load(onload, onerror);
     }
     // add this p5.SoundFile to the soundArray
     p5sound.soundArray.push(this);
     if (typeof whileLoading === 'function') {
-      this.whileLoading = whileLoading;
+      this._whileLoading = whileLoading;
     } else {
-      this.whileLoading = function () {
+      this._whileLoading = function () {
       };
     }
   };
@@ -822,10 +865,12 @@ soundfile = function () {
    *                                    i.e. ['sound.ogg', 'sound.mp3'].
    *                                    Alternately, accepts an object: either
    *                                    from the HTML5 File API, or a p5.File.
-   *  @param {Function} [callback]   Name of a function to call once file loads
-   *  @param {Function} [callback]   Name of a function to call while file is loading.
-   *                                 This function will receive a percentage from 0.0
-   *                                 to 1.0.
+   *  @param {Function} [successCallback]   Name of a function to call once file loads
+   *  @param {Function} [errorCallback]   Name of a function to call if there is
+   *                                      an error loading the file.
+   *  @param {Function} [whileLoading] Name of a function to call while file is loading.
+   *                                 This function will receive the percentage loaded
+   *                                 so far, from 0.0 to 1.0.
    *  @return {SoundFile}            Returns a p5.SoundFile
    *  @example 
    *  <div><code>
@@ -839,12 +884,12 @@ soundfile = function () {
    *  }
    *  </code></div>
    */
-  p5.prototype.loadSound = function (path, callback, whileLoading) {
+  p5.prototype.loadSound = function (path, callback, onerror, whileLoading) {
     // if loading locally without a server
     if (window.location.origin.indexOf('file://') > -1 && window.cordova === 'undefined') {
       alert('This sketch may require a server to load external files. Please see http://bit.ly/1qcInwS');
     }
-    var s = new p5.SoundFile(path, callback, whileLoading);
+    var s = new p5.SoundFile(path, callback, onerror, whileLoading);
     return s;
   };
   /**
@@ -853,27 +898,62 @@ soundfile = function () {
    * as an optional parameter.
    *
    * @private
-   * @param {Function} [callback]   Name of a function to call once file loads
+   * @param {Function} [successCallback]   Name of a function to call once file loads
+   * @param {Function} [errorCallback]   Name of a function to call if there is an error
    */
-  p5.SoundFile.prototype.load = function (callback) {
+  p5.SoundFile.prototype.load = function (callback, errorCallback) {
+    var loggedError = false;
+    var self = this;
+    var errorTrace = new Error().stack;
     if (this.url != undefined && this.url != '') {
-      var sf = this;
       var request = new XMLHttpRequest();
       request.addEventListener('progress', function (evt) {
-        sf._updateProgress(evt);
+        self._updateProgress(evt);
       }, false);
       request.open('GET', this.url, true);
       request.responseType = 'arraybuffer';
-      // decode asyncrohonously
-      var self = this;
       request.onload = function () {
-        ac.decodeAudioData(request.response, function (buff) {
-          self.buffer = buff;
-          self.panner.inputChannels(buff.numberOfChannels);
-          if (callback) {
-            callback(self);
+        if (request.status == 200) {
+          // on sucess loading file:
+          ac.decodeAudioData(request.response, // success decoding buffer:
+          function (buff) {
+            self.buffer = buff;
+            self.panner.inputChannels(buff.numberOfChannels);
+            if (callback) {
+              callback(self);
+            }
+          }, // error decoding buffer. "e" is undefined in Chrome 11/22/2015
+          function (e) {
+            var err = new CustomError('decodeAudioData', errorTrace, self.url);
+            var msg = 'AudioContext error at decodeAudioData for ' + self.url;
+            if (errorCallback) {
+              err.msg = msg;
+              errorCallback(err);
+            } else {
+              console.error(msg + '\n The error stack trace includes: \n' + err.stack);
+            }
+          });
+        } else {
+          var err = new CustomError('loadSound', errorTrace, self.url);
+          var msg = 'Unable to load ' + self.url + '. The request status was: ' + request.status + ' (' + request.statusText + ')';
+          if (errorCallback) {
+            err.message = msg;
+            errorCallback(err);
+          } else {
+            console.error(msg + '\n The error stack trace includes: \n' + err.stack);
           }
-        });
+        }
+      };
+      // if there is another error, aside from 404...
+      request.onerror = function (e) {
+        var err = new CustomError('loadSound', errorTrace, self.url);
+        var msg = 'There was no response from the server at ' + self.url + '. Check the url and internet connectivity.';
+        if (errorCallback) {
+          err.message = msg;
+          errorCallback(err);
+        } else {
+          console.error(msg + '\n The error stack trace includes: \n' + err.stack);
+        }
       };
       request.send();
     } else if (this.file != undefined) {
@@ -888,6 +968,10 @@ soundfile = function () {
           }
         });
       };
+      reader.onerror = function (e) {
+        if (onerror)
+          onerror(e);
+      };
       reader.readAsArrayBuffer(this.file);
     }
   };
@@ -895,28 +979,17 @@ soundfile = function () {
   p5.SoundFile.prototype._updateProgress = function (evt) {
     if (evt.lengthComputable) {
       var percentComplete = Math.log(evt.loaded / evt.total * 9.9);
-      this.whileLoading(percentComplete);
+      this._whileLoading(percentComplete);
     } else {
-      console.log('size unknown');
+      // Unable to compute progress information since the total size is unknown
+      this._whileLoading('size unknown');
     }
   };
   /**
-   *  Returns true when the sound file finishes loading successfully.
+   *  Returns true if the sound file finished loading successfully.
    *  
    *  @method  isLoaded
    *  @return {Boolean} 
-   *  @example 
-   *  <div><code>
-   *  function setup() {
-   *   mySound = loadSound('assets/doorbell.mp3');
-   *  }
-   *
-   *  function draw() {
-   *    background(255);
-   *    frameRate(1);
-   *    text('loaded: ' + mySound.isLoaded(), 5, height/2);
-   *  }
-   *  </code></div>
    */
   p5.SoundFile.prototype.isLoaded = function () {
     if (this.buffer) {
@@ -935,17 +1008,6 @@ soundfile = function () {
    *                                     of playback
    * @param {Number} [cueStart]        (optional) cue start time in seconds
    * @param {Number} [duration]          (optional) duration of playback in seconds
-   * @example 
-   *  <div><code>
-   *  function preload() {
-   *   mySound = loadSound('assets/doorbell.mp3');
-   *  }
-   *
-   *  function setup() {
-   *    mySound.setVolume(0.1);
-   *    mySound.play();
-   *  }
-   *  </code></div>
    */
   p5.SoundFile.prototype.play = function (time, rate, amp, _cueStart, duration) {
     var self = this;
@@ -1018,6 +1080,8 @@ soundfile = function () {
       // delete this.bufferSourceNode from the sources array when it is done playing:
       this.bufferSourceNode.onended = function (e) {
         var theNode = this;
+        // call the onended callback
+        self._onended(self);
         // if (self.bufferSourceNodes.length === 1) {
         this._playing = false;
         // }
@@ -1140,49 +1204,16 @@ soundfile = function () {
     }
   };
   /**
-   * Loop the p5.SoundFile - play it over and over again. You can <code>.stop()</code>
-   * at any time, or turn off looping with <code>.setLoop(false)</code>.
-   * The loop method accepts optional parameters to schedule the looping in the future,
-   * and to set the playback rate, volume, loopStart, loopEnd.
+   * Loop the p5.SoundFile. Accepts optional parameters to set the
+   * playback rate, playback volume, loopStart, loopEnd.
    *
    * @method loop
    * @param {Number} [startTime] (optional) schedule event to occur
-   *                             seconds from now. Defaults to 0.
-   * @param {Number} [rate]        (optional) playback rate. Defaults to 1.
-   * @param {Number} [amp]         (optional) playback volume (max amplitude). Defaults to 1.
+   *                             seconds from now
+   * @param {Number} [rate]        (optional) playback rate
+   * @param {Number} [amp]         (optional) playback volume
    * @param {Number} [cueLoopStart](optional) startTime in seconds
    * @param {Number} [duration]  (optional) loop duration in seconds
-   * @example 
-   *  <div><code>
-   *  function preload() {
-   *   mySound = loadSound('assets/beat.mp3');
-   *  }
-   *
-   *  function setup() {
-   *    var cnv = createCanvas(100, 100);
-   *
-   *    // schedule mouse events on mouse over/out
-   *    cnv.mouseOver(startLooping);
-   *    cnv.mouseOut(stopLooping);
-   *    
-   *    textAlign(CENTER);
-   *    text('hover to loop', width/2, height/2);
-   *  }
-   *
-   *  function startLooping() {
-   *    background(255, 0, 0);
-   *    text('looping', width/2, height/2);
-   *
-   *    // start loop now, at playback rate of 3x, volume of 0.1
-   *    mySound.loop(0, 3, 0.1);
-   *  }
-   *  
-   *  function stopLooping() {
-   *    background(0, 255, 0);
-   *    text('stopped', width/2, height/2);
-   *    mySound.stop();
-   *  }
-   *  </code></div>
    */
   p5.SoundFile.prototype.loop = function (startTime, rate, amp, loopStart, duration) {
     this._looping = true;
@@ -1277,21 +1308,24 @@ soundfile = function () {
       for (var i = 0; i < this.bufferSourceNodes.length; i++) {
         if (typeof this.bufferSourceNodes[i] != undefined) {
           try {
+            this.bufferSourceNodes[i].onended = function () {
+            };
             this.bufferSourceNodes[i].stop(now + time);
           } catch (e) {
           }
         }
       }
       this._counterNode.stop(now + time);
+      this._onended(this);
     }
   };
   /**
-   *  <p>Multiply the output volume (amplitude) of a sound file
+   *  Multiply the output volume (amplitude) of a sound file
    *  between 0.0 (silence) and 1.0 (full volume).
    *  1.0 is the maximum amplitude of a digital sound, so multiplying
-   *  by greater than 1.0 may cause digital distortion.</p>
-   *  <p>To fade, provide a <code>rampTime</code> parameter. For more
-   *  complex fades, see the Env class.</p>
+   *  by greater than 1.0 may cause digital distortion. To
+   *  fade, provide a <code>rampTime</code> parameter. For more
+   *  complex fades, see the Env class.
    *
    *  Alternately, you can pass in a signal source such as an
    *  oscillator to modulate the amplitude with an audio signal.
@@ -1302,43 +1336,6 @@ soundfile = function () {
    *  @param {Number} [rampTime]  Fade for t seconds
    *  @param {Number} [timeFromNow]  Schedule this event to happen at
    *                                 t seconds in the future
-   *  @example 
-   *  <div><code>
-   *  function preload() {
-   *    mySound = loadSound('assets/drum.mp3');
-   *  }
-   *
-   *  function setup() {
-   *    var cnv = createCanvas(100, 100);
-   *    background(205, 255, 0);
-   *    cnv.mouseOver(fadeIn);
-   *    cnv.mouseOut(fadeOut);
-   *
-   *    // mute to start
-   *    mySound.setVolume(0);
-   *    mySound.rate(5)
-   *    mySound.loop();
-   *    
-   *    textAlign(CENTER);
-   *    text('hover to fade in', width/2, height/2);
-   *  }
-   *
-   *  function fadeIn() {   
-   *    background(200, 0, 255);
-   *    text('hover to fade out', width/2, height/2);
-   *
-   *    // fade in to full volume over 0.5 seconds
-   *    mySound.setVolume(1, 0.5);
-   *  }
-   *
-   *  function fadeOut() {
-   *    background(205, 255, 0);
-   *    text('hover to fade in', width/2, height/2);
-   *
-   *    // fade to 0 over 2 seconds
-   *    mySound.setVolume(0, 2);
-   *  }
-   *  </code></div>
    */
   p5.SoundFile.prototype.setVolume = function (vol, rampTime, tFromNow) {
     if (typeof vol === 'number') {
@@ -1660,12 +1657,20 @@ soundfile = function () {
     this.setVolume(curVol, 0.01, 0.0101);
     this.play();
   };
-  // private function for onended behavior
-  p5.SoundFile.prototype._onEnded = function (s) {
-    s.onended = function (s) {
-      var now = p5sound.audiocontext.currentTime;
-      s.stop(now);
-    };
+  /**
+   *  Schedule an event to be called when the soundfile
+   *  reaches the end of a buffer. If the soundfile is
+   *  playing through once, this will be called when it
+   *  ends. If it is looping, it will be called when
+   *  stop is called.
+   *  
+   *  @method  onended
+   *  @param  {Function} callback function to call when the
+   *                              soundfile has ended.
+   */
+  p5.SoundFile.prototype.onended = function (callback) {
+    this._onended = callback;
+    return this;
   };
   p5.SoundFile.prototype.add = function () {
   };
@@ -2149,7 +2154,7 @@ soundfile = function () {
     this.id = id;
     this.val = val;
   };
-}(sndcore, master);
+}(sndcore, errorHandler, master);
 var amplitude;
 amplitude = function () {
   'use strict';
@@ -3607,6 +3612,7 @@ oscillator = function () {
     }
     this.started = false;
     // components
+    this.phaseAmount = undefined;
     this.oscillator = p5sound.audiocontext.createOscillator();
     this.f = freq || 440;
     // frequency
@@ -3757,6 +3763,10 @@ oscillator = function () {
       } else {
         this.oscillator.frequency.linearRampToValueAtTime(val, tFromNow + rampTime + now);
       }
+      // reset phase if oscillator has a phase
+      if (this.phaseAmount) {
+        this.phase(this.phaseAmount);
+      }
     } else if (val) {
       if (val.output) {
         val = val.output;
@@ -3844,23 +3854,27 @@ oscillator = function () {
     }
   };
   /**
-   *  Set the phase of an oscillator between 0.0 and 1.0
+   *  Set the phase of an oscillator between 0.0 and 1.0.
+   *  In this implementation, phase is a delay time
+   *  based on the oscillator's current frequency.
    *  
    *  @method  phase
    *  @param  {Number} phase float between 0.0 and 1.0
    */
   p5.Oscillator.prototype.phase = function (p) {
+    var delayAmt = p5.prototype.map(p, 0, 1, 0, 1 / this.f);
+    var now = p5sound.audiocontext.currentTime;
+    this.phaseAmount = p;
     if (!this.dNode) {
       // create a delay node
       this.dNode = p5sound.audiocontext.createDelay();
       // put the delay node in between output and panner
-      this.output.disconnect();
-      this.output.connect(this.dNode);
-      this.dNode.connect(this.panner);
+      this.oscillator.disconnect();
+      this.oscillator.connect(this.dNode);
+      this.dNode.connect(this.output);
     }
-    // set delay time based on PWM width
-    var now = p5sound.audiocontext.currentTime;
-    this.dNode.delayTime.linearRampToValueAtTime(p5.prototype.map(p, 0, 1, 0, 1 / this.oscillator.frequency.value), now);
+    // set delay time to match phase:
+    this.dNode.delayTime.setValueAtTime(delayAmt, now);
   };
   // ========================== //
   // SIGNAL MATH FOR MODULATION //
@@ -4026,11 +4040,6 @@ env = function () {
   var Scale = Tone_signal_Scale;
   var Tone = Tone_core_Tone;
   Tone.setContext(p5sound.audiocontext);
-  // oscillator or buffer source to clear on env complete
-  // to save resources if/when it is retriggered
-  var sourceToClear = null;
-  // set to true if attack is set, then false on release
-  var wasTriggered = false;
   /**
    *  <p>Envelopes are pre-defined amplitude distribution over time. 
    *  The p5.Env accepts up to four time/level pairs, where time
@@ -4130,6 +4139,11 @@ env = function () {
     // store connection
     //array of math operation signal chaining
     this.mathOps = [this.control];
+    // oscillator or buffer source to clear on env complete
+    // to save resources if/when it is retriggered
+    this.sourceToClear = null;
+    // set to true if attack is set, then false on release
+    this.wasTriggered = false;
     // add to the soundArray so we can dispose of the env later
     p5sound.soundArray.push(this);
   };
@@ -4229,7 +4243,7 @@ env = function () {
     var tFromNow = secondsFromNow || 0;
     var t = now + tFromNow;
     this.lastAttack = t;
-    wasTriggered = true;
+    this.wasTriggered = true;
     // we should set current value, but this is not working on Firefox
     var currentVal = this.control.getValue();
     console.log(currentVal);
@@ -4258,7 +4272,7 @@ env = function () {
    */
   p5.Env.prototype.triggerRelease = function (unit, secondsFromNow) {
     // only trigger a release if an attack was triggered
-    if (!wasTriggered) {
+    if (!this.wasTriggered) {
       return;
     }
     var now = p5sound.audiocontext.currentTime;
@@ -4274,21 +4288,21 @@ env = function () {
     // ideally would get & set currentValue here,
     // but this.control._scalar.gain.value not working in firefox
     // release based on how much time has passed since this.lastAttack
-    if (now - this.lastAttack < this.aTime) {
+    if (t - this.lastAttack < this.aTime) {
       var a = this.aTime - (t - this.lastAttack);
       this.control.linearRampToValueAtTime(this.aLevel, t + a);
       this.control.linearRampToValueAtTime(this.dLevel, t + a + this.dTime);
       this.control.linearRampToValueAtTime(this.sLevel, t + a + this.dTime + this.sTime);
       this.control.linearRampToValueAtTime(this.rLevel, t + a + this.dTime + this.sTime + this.rTime);
       relTime = t + this.dTime + this.sTime + this.rTime;
-    } else if (now - this.lastAttack < this.aTime + this.dTime) {
+    } else if (t - this.lastAttack < this.aTime + this.dTime) {
       var d = this.aTime + this.dTime - (now - this.lastAttack);
       this.control.linearRampToValueAtTime(this.dLevel, t + d);
       // this.control.linearRampToValueAtTime(this.sLevel, t + d + this.sTime);
       this.control.linearRampToValueAtTime(this.sLevel, t + d + 0.01);
       this.control.linearRampToValueAtTime(this.rLevel, t + d + 0.01 + this.rTime);
       relTime = t + this.sTime + this.rTime;
-    } else if (now - this.lastAttack < this.aTime + this.dTime + this.sTime) {
+    } else if (t - this.lastAttack < this.aTime + this.dTime + this.sTime) {
       var s = this.aTime + this.dTime + this.sTime - (now - this.lastAttack);
       this.control.linearRampToValueAtTime(this.sLevel, t + s);
       this.control.linearRampToValueAtTime(this.rLevel, t + s + this.rTime);
@@ -4302,13 +4316,13 @@ env = function () {
     var clearTime = t + this.aTime + this.dTime + this.sTime + this.rTime;
     // * 1000;
     if (this.connection && this.connection.hasOwnProperty('oscillator')) {
-      sourceToClear = this.connection.oscillator;
-      sourceToClear.stop(clearTime + 0.01);
+      this.sourceToClear = this.connection.oscillator;
+      this.sourceToClear.stop(clearTime + 0.01);
     } else if (this.connect && this.connection.hasOwnProperty('source')) {
-      sourceToClear = this.connection.source;
-      sourceToClear.stop(clearTime + 0.01);
+      this.sourceToClear = this.connection.source;
+      this.sourceToClear.stop(clearTime + 0.01);
     }
-    wasTriggered = false;
+    this.wasTriggered = false;
   };
   p5.Env.prototype.connect = function (unit) {
     this.connection = unit;
@@ -4750,6 +4764,7 @@ var audioin;
 audioin = function () {
   'use strict';
   var p5sound = master;
+  var CustomError = errorHandler;
   /**
    *  <p>Get audio from an input, i.e. your computer's microphone.</p>
    *
@@ -4816,24 +4831,35 @@ audioin = function () {
    *  anything unless you use the connect() method.<br/>
    *
    *  @method start
+   *  @param {Function} successCallback Name of a function to call on
+   *                                    success.
+   *  @param {Function} errorCallback Name of a function to call if
+   *                                    there was an error. For example,
+   *                                    some browsers do not support
+   *                                    getUserMedia.
    */
-  p5.AudioIn.prototype.start = function () {
+  p5.AudioIn.prototype.start = function (successCallback, errorCallback) {
     var self = this;
     // if _gotSources() i.e. developers determine which source to use
     if (p5sound.inputSources[self.currentSource]) {
       // set the audio source
       var audioSource = p5sound.inputSources[self.currentSource].id;
       var constraints = { audio: { optional: [{ sourceId: audioSource }] } };
-      navigator.getUserMedia(constraints, this._onStream = function (stream) {
+      window.navigator.getUserMedia(constraints, this._onStream = function (stream) {
         self.stream = stream;
         self.enabled = true;
         // Wrap a MediaStreamSourceNode around the live input
         self.mediaStream = p5sound.audiocontext.createMediaStreamSource(stream);
         self.mediaStream.connect(self.output);
+        if (successCallback)
+          successCallback();
         // only send to the Amplitude reader, so we can see it but not hear it.
         self.amplitude.setInput(self.output);
-      }, this._onStreamError = function (stream) {
-        console.error(stream);
+      }, this._onStreamError = function (e) {
+        if (errorCallback)
+          errorCallback(e);
+        else
+          console.error(e);
       });
     } else {
       // if Firefox where users select their source via browser
@@ -4847,8 +4873,13 @@ audioin = function () {
         self.mediaStream.connect(self.output);
         // only send to the Amplitude reader, so we can see it but not hear it.
         self.amplitude.setInput(self.output);
-      }, this._onStreamError = function (stream) {
-        console.error(stream);
+        if (successCallback)
+          successCallback();
+      }, this._onStreamError = function (e) {
+        if (errorCallback)
+          errorCallback(e);
+        else
+          console.error(e);
       });
     }
   };
@@ -4987,8 +5018,6 @@ audioin = function () {
    *      audioGrab.setSource(0);
    *    });
    *  }
-   *  function draw(){
-   *  }
    *  </code></div>
    */
   p5.AudioIn.prototype.getSources = function (callback) {
@@ -5040,7 +5069,7 @@ audioin = function () {
     this.amplitude = null;
     this.output = null;
   };
-}(master);
+}(master, errorHandler);
 var filter;
 filter = function () {
   'use strict';
@@ -5578,6 +5607,7 @@ var reverb;
 reverb = function () {
   'use strict';
   var p5sound = master;
+  var CustomError = errorHandler;
   /**
    *  Reverb adds depth to a sound through a large number of decaying
    *  echoes. It creates the perception that sound is occurring in a
@@ -5776,7 +5806,11 @@ reverb = function () {
    *  @class p5.Convolver
    *  @constructor
    *  @param  {String}   path     path to a sound file
-   *  @param  {[Function]} callback function (optional)
+   *  @param  {Function} [callback] function to call when loading succeeds
+   *  @param  {Function} [errorCallback] function to call if loading fails.
+   *                                     This function will receive an error or
+   *                                     XMLHttpRequest object with information
+   *                                     about what went wrong.
    *  @example
    *  <div><code>
    *  var cVerb, sound;
@@ -5805,7 +5839,7 @@ reverb = function () {
    *  }
    *  </code></div>
    */
-  p5.Convolver = function (path, callback) {
+  p5.Convolver = function (path, callback, errorCallback) {
     this.ac = p5sound.audiocontext;
     /**
      *  Internally, the p5.Convolver uses the a
@@ -5824,7 +5858,7 @@ reverb = function () {
     this.convolverNode.connect(this.output);
     if (path) {
       this.impulses = [];
-      this._loadBuffer(path, callback);
+      this._loadBuffer(path, callback, errorCallback);
     } else {
       // parameters
       this._seconds = 3;
@@ -5843,7 +5877,12 @@ reverb = function () {
    *
    *  @method  createConvolver
    *  @param  {String}   path     path to a sound file
-   *  @param  {[Function]} callback function (optional)
+   *  @param  {Function} [callback] function to call if loading is successful.
+   *                                The object will be passed in as the argument
+   *                                to the callback function.
+   *  @param  {Function} [errorCallback] function to call if loading is not successful.
+   *                                A custom error will be passed in as the argument
+   *                                to the callback function.
    *  @return {p5.Convolver}
    *  @example
    *  <div><code>
@@ -5873,12 +5912,12 @@ reverb = function () {
    *  }
    *  </code></div>
    */
-  p5.prototype.createConvolver = function (path, callback) {
+  p5.prototype.createConvolver = function (path, callback, errorCallback) {
     // if loading locally without a server
     if (window.location.origin.indexOf('file://') > -1 && window.cordova === 'undefined') {
       alert('This sketch may require a server to load external files. Please see http://bit.ly/1qcInwS');
     }
-    var cReverb = new p5.Convolver(path, callback);
+    var cReverb = new p5.Convolver(path, callback, errorCallback);
     cReverb.impulses = [];
     return cReverb;
   };
@@ -5888,28 +5927,62 @@ reverb = function () {
    *  
    *  @param   {String}   path
    *  @param   {Function} callback
+   *  @param   {Function} errorCallback
    *  @private
    */
-  p5.Convolver.prototype._loadBuffer = function (path, callback) {
-    path = p5.prototype._checkFileFormats(path);
+  p5.Convolver.prototype._loadBuffer = function (path, callback, errorCallback) {
+    var path = p5.prototype._checkFileFormats(path);
+    var self = this;
+    var errorTrace = new Error().stack;
+    var ac = p5.prototype.getAudioContext();
     var request = new XMLHttpRequest();
     request.open('GET', path, true);
     request.responseType = 'arraybuffer';
-    // decode asyncrohonously
-    var self = this;
     request.onload = function () {
-      var ac = p5.prototype.getAudioContext();
-      ac.decodeAudioData(request.response, function (buff) {
-        var buffer = {};
-        var chunks = path.split('/');
-        buffer.name = chunks[chunks.length - 1];
-        buffer.audioBuffer = buff;
-        self.impulses.push(buffer);
-        self.convolverNode.buffer = buffer.audioBuffer;
-        if (callback) {
-          callback(buffer);
+      if (request.status == 200) {
+        // on success loading file:
+        ac.decodeAudioData(request.response, function (buff) {
+          var buffer = {};
+          var chunks = path.split('/');
+          buffer.name = chunks[chunks.length - 1];
+          buffer.audioBuffer = buff;
+          self.impulses.push(buffer);
+          self.convolverNode.buffer = buffer.audioBuffer;
+          if (callback) {
+            callback(buffer);
+          }
+        }, // error decoding buffer. "e" is undefined in Chrome 11/22/2015
+        function (e) {
+          var err = new CustomError('decodeAudioData', errorTrace, self.url);
+          var msg = 'AudioContext error at decodeAudioData for ' + self.url;
+          if (errorCallback) {
+            err.msg = msg;
+            errorCallback(err);
+          } else {
+            console.error(msg + '\n The error stack trace includes: \n' + err.stack);
+          }
+        });
+      } else {
+        var err = new CustomError('loadConvolver', errorTrace, self.url);
+        var msg = 'Unable to load ' + self.url + '. The request status was: ' + request.status + ' (' + request.statusText + ')';
+        if (errorCallback) {
+          err.message = msg;
+          errorCallback(err);
+        } else {
+          console.error(msg + '\n The error stack trace includes: \n' + err.stack);
         }
-      });
+      }
+    };
+    // if there is another error, aside from 404...
+    request.onerror = function (e) {
+      var err = new CustomError('loadConvolver', errorTrace, self.url);
+      var msg = 'There was no response from the server at ' + self.url + '. Check the url and internet connectivity.';
+      if (errorCallback) {
+        err.message = msg;
+        errorCallback(err);
+      } else {
+        console.error(msg + '\n The error stack trace includes: \n' + err.stack);
+      }
     };
     request.send();
   };
@@ -5963,14 +6036,15 @@ reverb = function () {
    *  
    *  @method  addImpulse
    *  @param  {String}   path     path to a sound file
-   *  @param  {[Function]} callback function (optional)
+   *  @param  {Function} callback function (optional)
+   *  @param  {Function} errorCallback function (optional)
    */
-  p5.Convolver.prototype.addImpulse = function (path, callback) {
+  p5.Convolver.prototype.addImpulse = function (path, callback, errorCallback) {
     // if loading locally without a server
     if (window.location.origin.indexOf('file://') > -1 && window.cordova === 'undefined') {
       alert('This sketch may require a server to load external files. Please see http://bit.ly/1qcInwS');
     }
-    this._loadBuffer(path, callback);
+    this._loadBuffer(path, callback, errorCallback);
   };
   /**
    *  Similar to .addImpulse, except that the <code>.impulses</code>
@@ -5979,15 +6053,16 @@ reverb = function () {
    *
    *  @method  resetImpulse
    *  @param  {String}   path     path to a sound file
-   *  @param  {[Function]} callback function (optional)
+   *  @param  {Function} callback function (optional)
+   *  @param  {Function} errorCallback function (optional)
    */
-  p5.Convolver.prototype.resetImpulse = function (path, callback) {
+  p5.Convolver.prototype.resetImpulse = function (path, callback, errorCallback) {
     // if loading locally without a server
     if (window.location.origin.indexOf('file://') > -1 && window.cordova === 'undefined') {
       alert('This sketch may require a server to load external files. Please see http://bit.ly/1qcInwS');
     }
     this.impulses = [];
-    this._loadBuffer(path, callback);
+    this._loadBuffer(path, callback, errorCallback);
   };
   /**
    *  If you have used <code>.addImpulse()</code> to add multiple impulses
@@ -6037,7 +6112,7 @@ reverb = function () {
       this.panner = null;
     }
   };
-}(master, sndcore);
+}(master, errorHandler, sndcore);
 /** Tone.js module by Yotam Mann, MIT License 2014  http://opensource.org/licenses/MIT **/
 var Tone_core_Clock;
 Tone_core_Clock = function (Tone) {
@@ -7314,5 +7389,5 @@ src_app = function () {
   'use strict';
   var p5SOUND = sndcore;
   return p5SOUND;
-}(sndcore, master, helpers, panner, soundfile, amplitude, fft, signal, oscillator, env, pulse, noise, audioin, filter, delay, reverb, metro, looper, soundRecorder, peakdetect, gain);
+}(sndcore, master, helpers, errorHandler, panner, soundfile, amplitude, fft, signal, oscillator, env, pulse, noise, audioin, filter, delay, reverb, metro, looper, soundRecorder, peakdetect, gain);
 }));
