@@ -4,12 +4,12 @@
 
 var identifier = {
 	none: {value:0, name:"none", color:[], position:[0, 0], vol:0.0},
-	pink: {value:1, name:"pink", color:[240, 185, 197], position:[335, 175], vol:0.1},
+	pink: {value:1, name:"pink", color:[240, 185, 197], position:[335, 175], vol:0.2},
 	tripple: {value:2, name:"tripple", color:[161, 161, 211], position:[140, 145], vol:0.1},
-	fat: {value:3, name:"fat", color:[236, 227, 159], position:[192, 152], vol:0.1},
-	longer: {value:4, name:"longer", color:[245, 126, 122], position:[142, 130], vol:0.15},
+	fat: {value:3, name:"fat", color:[236, 227, 159], position:[192, 152], vol:0.15},
+	longer: {value:4, name:"longer", color:[245, 126, 122], position:[142, 130], vol:0.2},
 	green: {value:5, name:"green", color:[141, 198, 159], position:[280, 140], vol:0.15},
-	small: {value:6, name:'small', color:[233, 223, 147], position:[355, 218], vol:0.05},
+	small: {value:6, name:'small', color:[233, 223, 147], position:[355, 218], vol:0.1},
 	white: {value:7, name:'white', color:[255, 255, 255], position:[222, 173], vol:0.3}
 }
 
