@@ -15,6 +15,7 @@ var identifier = {
 
 var bgSound, bgImage;
 var singers = [];
+var snow = [];
 var masterClock = 0;
 
 function preload() {
@@ -30,6 +31,7 @@ function preload() {
 		greenImgs[i] = loadImage("../dudes/green/green_" + format);
 		smallImgs[i] = loadImage("../dudes/small/small_" + format);
 		whiteImgs[i] = loadImage("../dudes/white/white_" + format);
+		snow[i] = loadImage("../snow/snow_" + format);
 	}
 
 	// layout depends on order in which singers are initialized
@@ -56,6 +58,7 @@ function draw() {
 	background(bgImage);
 	
 	for (var i = 0; i < singers.length; i++) { singers[i].perform(); }
+	image(snow[masterClock]);
 
 	masterClock = (masterClock + 1) % 94;
 }
