@@ -1,4 +1,4 @@
-// Learning p5.js
+// carolapp
 // an2netto
 // https://carol-dudes.herokuapp.com/
 
